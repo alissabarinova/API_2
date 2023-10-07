@@ -1,5 +1,5 @@
 import re
-
+from flask import jsonify
 
 class User:
     def __init__(self, id, first_name, last_name, email, total_reactions=0, posts=[]):
@@ -23,3 +23,11 @@ class Post:
         self.author_id = author_id
         self.text = text
         self.reactions = reactions
+
+    def to_dict(self):
+        return  dict({
+            "post_id": self.post_id,
+            "author_id": self.author_id,
+            "text": self.text,
+            "reactions": self.reactions
+        })

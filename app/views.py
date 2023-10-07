@@ -1,5 +1,5 @@
 from app import app, USERS, models, POSTS
-from flask import request, Response
+from flask import request, Response, jsonify
 import json
 from http import HTTPStatus
 
@@ -29,7 +29,12 @@ def user_create():
         "last_name": user.last_name,
         "email": user.email,
         "total_reactions": str(user.total_reactions),
-        "posts": user.posts,
+        "posts": json.dumps([{
+            "id": str(p.post_id),
+            "author_id": str(p.author_id),
+            "text": p.text,
+            "reactions": p.reactions
+        } for p in user.posts]),
     }),
         HTTPStatus.OK,
         mimetype='application/json')
@@ -47,7 +52,12 @@ def get_user(user_id):
         "last_name": user.last_name,
         "email": user.email,
         "total_reactions": str(user.total_reactions),
-        "posts": user.posts,
+        "posts": json.dumps([{
+            "id": str(p.post_id),
+            "author_id": str(p.author_id),
+            "text": p.text,
+            "reactions": p.reactions
+        } for p in user.posts]),
     }), HTTPStatus.OK, mimetype='application/json')
     return response
 
@@ -64,14 +74,20 @@ def post_create():
     user = USERS[int(author_id)]
     user.posts.append(post)
 
-    response = Response(json.dumps({
+    response_data = {
         "id": str(post.post_id),
         "author_id": str(post.author_id),
         "text": post.text,
-        "reactions": post.reactions
-    }),
-        HTTPStatus.OK,
-        mimetype='application/json')
+        "reactions": post.reactions,
+        "user_posts": json.dumps([{
+            "id": str(p.post_id),
+            "author_id": str(p.author_id),
+            "text": p.text,
+            "reactions": p.reactions
+        } for p in user.posts])
+    }
+
+    response = Response(json.dumps(response_data), HTTPStatus.OK, mimetype='application/json')
     return response
 
 
@@ -80,22 +96,21 @@ def get_post(post_id):
     if post_id < 0 or post_id >= len(POSTS):
         return Response(status=HTTPStatus.NOT_FOUND)
     post = POSTS[post_id]
-    response = Response(json.dumps({
+    response = {
         "id": str(post.post_id),
         "author_id": str(post.author_id),
         "text": post.text,
         "reactions": post.reactions
-    }),
-        HTTPStatus.OK,
-        mimetype='application/json')
-    return response
+    }
+
+    return jsonify(response), 200
 
 
 @app.post("/posts/<int:post_id>/reaction")
 def create_reaction(post_id):
     data = request.get_json()
-    user_id = int(data['user_id'])
-    reaction = data['reaction']
+    user_id = int(data["user_id"])
+    reaction = data["reaction"]
     if post_id < 0 or post_id >= len(POSTS) or user_id < 0 or user_id >= len(USERS):
         return Response(status=HTTPStatus.NOT_FOUND)
     post = POSTS[post_id]

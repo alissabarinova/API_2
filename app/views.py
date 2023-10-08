@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 @app.route("/")
 def index():
-    return "<h1>Hello! This is my first project on flask!</h1>"
+    return "<h1>Hello! This is my first project on flask!</h1> "
 
 
 @app.post("/users/create")
@@ -17,7 +17,7 @@ def user_create():
     first_name = data["first_name"]
     last_name = data["last_name"]
     email = data["email"]
-    # todo: случай, когда пользователь уже зарегистрирован
+    
     if not models.User.is_valid_email(email):
         return Response(status=HTTPStatus.BAD_REQUEST)
     if email in EMAILS:

@@ -1,45 +1,57 @@
-from app import app, USERS, models, POSTS
-from flask import request, Response, jsonify
+from app import app, USERS, models, POSTS, EMAILS
+from flask import request, Response, render_template, url_for
 import json
 from http import HTTPStatus
+import matplotlib.pyplot as plt
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    return "<h1>Hello wrold</h1>"
+    return "<h1>Hello! This is my first project on flask!</h1>"
 
 
-@app.post('/users/create')
+@app.post("/users/create")
 def user_create():
     data = request.get_json()
     user_id = len(USERS)
     first_name = data["first_name"]
     last_name = data["last_name"]
     email = data["email"]
-
+    # todo: случай, когда пользователь уже зарегистрирован
     if not models.User.is_valid_email(email):
         return Response(status=HTTPStatus.BAD_REQUEST)
-
+    if email in EMAILS:
+        return Response(status=HTTPStatus.CONFLICT)
+    EMAILS.append(email)
     new_user = models.User(user_id, first_name, last_name, email, 0, [])
 
     USERS.append(new_user)
-    new_user_posts = json.dumps([{
-        "id": p.post_id,
-        "author_id": p.author_id,
-        "text": p.text,
-        "reactions": p.reactions
-    } for p in new_user.posts])
+    new_user_posts = json.dumps(
+        [
+            {
+                "id": p.post_id,
+                "author_id": p.author_id,
+                "text": p.text,
+                "reactions": p.reactions,
+            }
+            for p in new_user.posts
+        ]
+    )
 
-    response = Response(json.dumps({
-        "id": new_user.id,
-        "first_name": new_user.first_name,
-        "last_name": new_user.last_name,
-        "email": new_user.email,
-        "total_reactions": new_user.total_reactions,
-        "posts": new_user_posts
-    }),
+    response = Response(
+        json.dumps(
+            {
+                "id": new_user.id,
+                "first_name": new_user.first_name,
+                "last_name": new_user.last_name,
+                "email": new_user.email,
+                "total_reactions": new_user.total_reactions,
+                "posts": new_user_posts,
+            }
+        ),
         HTTPStatus.OK,
-        mimetype='application/json')
+        mimetype="application/json",
+    )
     return response
 
 
@@ -48,21 +60,32 @@ def get_user(user_id):
     if user_id < 0 or user_id >= len(USERS):
         return Response(status=HTTPStatus.NOT_FOUND)
     temp_user = USERS[user_id]
-    temp_user_posts = json.dumps([{
-            "id": p.post_id,
-            "author_id": p.author_id,
-            "text": p.text,
-            "reactions": p.reactions
-        } for p in temp_user.posts])
+    temp_user_posts = json.dumps(
+        [
+            {
+                "id": p.post_id,
+                "author_id": p.author_id,
+                "text": p.text,
+                "reactions": p.reactions,
+            }
+            for p in temp_user.posts
+        ]
+    )
 
-    response = Response(json.dumps({
-        "id": temp_user.id,
-        "first_name": temp_user.first_name,
-        "last_name": temp_user.last_name,
-        "email": temp_user.email,
-        "total_reactions": temp_user.total_reactions,
-        "posts": temp_user_posts,
-    }), HTTPStatus.OK, mimetype='application/json')
+    response = Response(
+        json.dumps(
+            {
+                "id": temp_user.id,
+                "first_name": temp_user.first_name,
+                "last_name": temp_user.last_name,
+                "email": temp_user.email,
+                "total_reactions": temp_user.total_reactions,
+                "posts": temp_user_posts,
+            }
+        ),
+        HTTPStatus.OK,
+        mimetype="application/json",
+    )
     return response
 
 
@@ -70,8 +93,8 @@ def get_user(user_id):
 def post_create():
     data = request.get_json()
     post_id = len(POSTS)
-    author_id = int(data['author_id'])
-    text = data['text']
+    author_id = int(data["author_id"])
+    text = data["text"]
 
     new_post = models.Post(post_id, author_id, text, [])
     POSTS.append(new_post)
@@ -84,10 +107,12 @@ def post_create():
         "id": new_post.post_id,
         "author_id": new_post.author_id,
         "text": new_post.text,
-        "reactions": new_post.reactions
+        "reactions": new_post.reactions,
     }
 
-    response = Response(json.dumps(response_data), HTTPStatus.OK, mimetype='application/json')
+    response = Response(
+        json.dumps(response_data), HTTPStatus.OK, mimetype="application/json"
+    )
     return response
 
 
@@ -100,10 +125,12 @@ def get_post(post_id):
         "id": temp_post.post_id,
         "author_id": temp_post.author_id,
         "text": temp_post.text,
-        "reactions": temp_post.reactions
+        "reactions": temp_post.reactions,
     }
 
-    response = Response(json.dumps(response_data), HTTPStatus.OK, mimetype='application/json')
+    response = Response(
+        json.dumps(response_data), HTTPStatus.OK, mimetype="application/json"
+    )
     return response
 
 
@@ -120,26 +147,79 @@ def create_reaction(post_id):
     temp_user.total_reactions += 1
     return Response(status=HTTPStatus.OK)
 
+
 @app.get("/users/<int:user_id>/posts")
 def get_users_posts(user_id):
     data = request.get_json()
     type_sort = data["sort"]
     user = USERS[user_id]
 
-    if type_sort == 'asc':
+    if type_sort == "asc":
         sorted_posts = [post.to_dict() for post in sorted(user.posts)]
         return Response(
             json.dumps({"posts": sorted_posts}),
             status=HTTPStatus.OK,
-            mimetype='application/json'
+            mimetype="application/json",
         )
-    elif type_sort == 'desc':
+    elif type_sort == "desc":
         sorted_posts = [post.to_dict() for post in sorted(user.posts, reverse=True)]
         return Response(
             json.dumps({"posts": sorted_posts}),
             status=HTTPStatus.OK,
-            mimetype='application/json'
+            mimetype="application/json",
         )
     else:
         return Response(status=HTTPStatus.BAD_REQUEST)
 
+
+@app.get("/users/leaderboard")
+def get_statistics():
+    data = request.get_json()
+    stat_type = data["type"]
+    if stat_type == "graph":
+        sorted_users = [user.to_dict() for user in sorted(USERS, reverse=True)]
+
+        fig, ax = plt.subplots()
+
+        user_names = [
+            f'{user["first_name"]} {user["last_name"]} id: {user["id"]}'
+            for user in sorted_users
+        ]
+        users_reactions = [user["total_reactions"] for user in sorted_users]
+
+        ax.bar(user_names, users_reactions)
+        ax.set_ylabel("User's total reactions")
+        ax.set_title("Graph of users by number of reactions")
+
+        plt.savefig("app/static/graph_of_users_reactions.png")
+
+        return Response(
+            f"""<img src= "{url_for('static', filename='graph_of_users_reactions.png')}">""",
+            status=HTTPStatus.OK,
+            mimetype="text/html",
+        )
+
+    elif stat_type == "list":
+        stat_sort = data["sort"]
+
+        if stat_sort == "asc":
+            sorted_users = [user.to_dict() for user in sorted(USERS)]
+            return Response(
+                json.dumps({"users": sorted_users}),
+                status=HTTPStatus.OK,
+                mimetype="application/json",
+            )
+
+        elif stat_sort == "desc":
+            sorted_users = [user.to_dict() for user in sorted(USERS, reverse=True)]
+            return Response(
+                json.dumps({"users": sorted_users}),
+                status=HTTPStatus.OK,
+                mimetype="application/json",
+            )
+
+        else:
+            return Response(status=HTTPStatus.BAD_REQUEST)
+
+    else:
+        return Response(status=HTTPStatus.BAD_REQUEST)

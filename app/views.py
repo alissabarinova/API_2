@@ -12,29 +12,31 @@ def index():
 @app.post('/users/create')
 def user_create():
     data = request.get_json()
-    id = len(USERS)
-    first_name = data['first_name']
-    last_name = data['last_name']
-    email = data['email']
+    user_id = len(USERS)
+    first_name = data["first_name"]
+    last_name = data["last_name"]
+    email = data["email"]
 
     if not models.User.is_valid_email(email):
         return Response(status=HTTPStatus.BAD_REQUEST)
 
-    user = models.User(id, first_name, last_name, email)
+    new_user = models.User(user_id, first_name, last_name, email, 0, [])
 
-    USERS.append(user)
+    USERS.append(new_user)
+    new_user_posts = json.dumps([{
+        "id": p.post_id,
+        "author_id": p.author_id,
+        "text": p.text,
+        "reactions": p.reactions
+    } for p in new_user.posts])
+
     response = Response(json.dumps({
-        "id": str(user.id),
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "email": user.email,
-        "total_reactions": str(user.total_reactions),
-        "posts": json.dumps([{
-            "id": str(p.post_id),
-            "author_id": str(p.author_id),
-            "text": p.text,
-            "reactions": p.reactions
-        } for p in user.posts]),
+        "id": new_user.id,
+        "first_name": new_user.first_name,
+        "last_name": new_user.last_name,
+        "email": new_user.email,
+        "total_reactions": new_user.total_reactions,
+        "posts": new_user_posts
     }),
         HTTPStatus.OK,
         mimetype='application/json')
@@ -45,19 +47,21 @@ def user_create():
 def get_user(user_id):
     if user_id < 0 or user_id >= len(USERS):
         return Response(status=HTTPStatus.NOT_FOUND)
-    user = USERS[user_id]
-    response = Response(json.dumps({
-        "id": str(user.id),
-        "first_name": user.first_name,
-        "last_name": user.last_name,
-        "email": user.email,
-        "total_reactions": str(user.total_reactions),
-        "posts": json.dumps([{
-            "id": str(p.post_id),
-            "author_id": str(p.author_id),
+    temp_user = USERS[user_id]
+    temp_user_posts = json.dumps([{
+            "id": p.post_id,
+            "author_id": p.author_id,
             "text": p.text,
             "reactions": p.reactions
-        } for p in user.posts]),
+        } for p in temp_user.posts])
+
+    response = Response(json.dumps({
+        "id": temp_user.id,
+        "first_name": temp_user.first_name,
+        "last_name": temp_user.last_name,
+        "email": temp_user.email,
+        "total_reactions": temp_user.total_reactions,
+        "posts": temp_user_posts,
     }), HTTPStatus.OK, mimetype='application/json')
     return response
 
@@ -66,25 +70,21 @@ def get_user(user_id):
 def post_create():
     data = request.get_json()
     post_id = len(POSTS)
-    author_id = data['author_id']
+    author_id = int(data['author_id'])
     text = data['text']
 
-    post = models.Post(post_id, author_id, text)
-    POSTS.append(post)
-    user = USERS[int(author_id)]
-    user.posts.append(post)
+    new_post = models.Post(post_id, author_id, text, [])
+    POSTS.append(new_post)
+    if author_id < 0 or author_id >= len(USERS):
+        return Response(status=HTTPStatus.NOT_FOUND)
+    temp_user = USERS[author_id]
+    temp_user.posts.append(new_post)
 
     response_data = {
-        "id": str(post.post_id),
-        "author_id": str(post.author_id),
-        "text": post.text,
-        "reactions": post.reactions,
-        "user_posts": json.dumps([{
-            "id": str(p.post_id),
-            "author_id": str(p.author_id),
-            "text": p.text,
-            "reactions": p.reactions
-        } for p in user.posts])
+        "id": new_post.post_id,
+        "author_id": new_post.author_id,
+        "text": new_post.text,
+        "reactions": new_post.reactions
     }
 
     response = Response(json.dumps(response_data), HTTPStatus.OK, mimetype='application/json')
@@ -95,26 +95,51 @@ def post_create():
 def get_post(post_id):
     if post_id < 0 or post_id >= len(POSTS):
         return Response(status=HTTPStatus.NOT_FOUND)
-    post = POSTS[post_id]
-    response = {
-        "id": str(post.post_id),
-        "author_id": str(post.author_id),
-        "text": post.text,
-        "reactions": post.reactions
+    temp_post = POSTS[post_id]
+    response_data = {
+        "id": temp_post.post_id,
+        "author_id": temp_post.author_id,
+        "text": temp_post.text,
+        "reactions": temp_post.reactions
     }
 
-    return jsonify(response), 200
+    response = Response(json.dumps(response_data), HTTPStatus.OK, mimetype='application/json')
+    return response
 
 
 @app.post("/posts/<int:post_id>/reaction")
 def create_reaction(post_id):
     data = request.get_json()
     user_id = int(data["user_id"])
-    reaction = data["reaction"]
+    new_reaction = data["reaction"]
     if post_id < 0 or post_id >= len(POSTS) or user_id < 0 or user_id >= len(USERS):
         return Response(status=HTTPStatus.NOT_FOUND)
-    post = POSTS[post_id]
-    post.reactions.append(reaction)
-    user = USERS[user_id]
-    user.total_reactions += 1
+    current_post = POSTS[post_id]
+    current_post.reactions.append(new_reaction)
+    temp_user = USERS[user_id]
+    temp_user.total_reactions += 1
     return Response(status=HTTPStatus.OK)
+
+@app.get("/users/<int:user_id>/posts")
+def get_users_posts(user_id):
+    data = request.get_json()
+    type_sort = data["sort"]
+    user = USERS[user_id]
+
+    if type_sort == 'asc':
+        sorted_posts = [post.to_dict() for post in sorted(user.posts)]
+        return Response(
+            json.dumps({"posts": sorted_posts}),
+            status=HTTPStatus.OK,
+            mimetype='application/json'
+        )
+    elif type_sort == 'desc':
+        sorted_posts = [post.to_dict() for post in sorted(user.posts, reverse=True)]
+        return Response(
+            json.dumps({"posts": sorted_posts}),
+            status=HTTPStatus.OK,
+            mimetype='application/json'
+        )
+    else:
+        return Response(status=HTTPStatus.BAD_REQUEST)
+

@@ -1,4 +1,4 @@
-from app import app, USERS, models, POSTS
+from app import app, USERS, models, POSTS, EMAILS
 from flask import request, Response, jsonify
 import json
 from http import HTTPStatus
@@ -16,10 +16,12 @@ def user_create():
     first_name = data["first_name"]
     last_name = data["last_name"]
     email = data["email"]
-
+# todo: случай, когда пользователь уже зарегистрирован
     if not models.User.is_valid_email(email):
         return Response(status=HTTPStatus.BAD_REQUEST)
-
+    if email in EMAILS:
+        return Response(status=HTTPStatus.CONFLICT)
+    EMAILS.append(email)
     new_user = models.User(user_id, first_name, last_name, email, 0, [])
 
     USERS.append(new_user)
@@ -143,3 +145,9 @@ def get_users_posts(user_id):
     else:
         return Response(status=HTTPStatus.BAD_REQUEST)
 
+@app.get("/users/leaderboard")
+def get_graph():
+    data = request.get_json()
+    stat_type = data["type"]
+    if stat_type != "graph":
+        return Response(status=HTTPStatus.BAD_REQUEST)

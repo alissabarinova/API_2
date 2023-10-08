@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 @app.route("/")
 def index():
-    return "<h1>Hello wrold</h1>"
+    return "<h1>Hello! This is my first project on flask!</h1>"
 
 
 @app.post("/users/create")
